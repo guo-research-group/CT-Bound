@@ -1,6 +1,10 @@
 # CT-Bound: Fast Boundary Estimation From Noisy Images Via Hybrid Convolution and Transformer Neural Networks
 
-*Wei Xu, Junjie Luo, Qi Guo*
+*Wei Xu, Junjie Luo, and Qi Guo*
+
+School of Electrical and Computer Engineering, Purdue University
+
+Contact: xu1639@purdue.edu
 
 CT-Bound is a fast boundary estimation method for noisy images using a hybrid Convolution and Transformer neural network. The proposed architecture decomposes boundary estimation into two tasks: local detection and global regularization of image boundaries. 
 
