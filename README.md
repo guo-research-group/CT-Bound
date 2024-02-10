@@ -2,7 +2,7 @@
 
 *Wei Xu, Junjie Luo, and Qi Guo*
 
-School of Electrical and Computer Engineering, Purdue University
+Elmore Family School of Electrical and Computer Engineering, Purdue University
 
 Contact: xu1639@purdue.edu
 
