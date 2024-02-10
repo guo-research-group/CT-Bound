@@ -6,28 +6,28 @@ CT-Bound is a fast boundary estimation method for noisy images using a hybrid Co
 
 ![Qualitative comparison](/pic/comparison.png "Qualitative comparison")
 
-Our datasets and the pretrained model can be found <a href="https://drive.google.com/drive/folders/19TFgtBi1XZiea0ilWVbKvpalh4g7k8ZH?usp=drive_link" title="CT-Bound datasets">here</a>. We also have a demo video to show the real time processing <a href="place_holder" title="CT-Bound demo video">here</a>. 
+Our datasets and the pretrained model can be found <a href="https://drive.google.com/drive/folders/19TFgtBi1XZiea0ilWVbKvpalh4g7k8ZH?usp=drive_link" title="CT-Bound datasets">here</a>. We also have a video demo to show the real time processing <a href="https://youtu.be/Vox1iI4VrHM" title="CT-Bound video demo">here</a>. 
 
-The folder content is shown below. Please create the ``dataset`` folder and its subfolder and put the datasets into the the corresponding folders. Note that the trained model will be saved in the corresponding subfolders by default. 
+The folder content is shown below. Please create the ``dataset`` folder and its subfolders and put the datasets into the the corresponding folders. Note that the trained model will be saved in the corresponding subfolders by default. In our implementation, the number of edge parameters in each patch is 3. 
 
 ```
 CT-Bound
 │   environment.yml
 │   ct_bound.py
-|   init_training.py
-|   ref_training.py
-|   transformer_origianl.py
-|   ...
+│   init_training.py
+│   ref_training.py
+│   transformer_origianl.py
+│   ...
 │
 └───dataset
     │
     └───initialization
-    |   │   best_run.pth
-    |   │   ...
-    |
+    │   │   best_run.pth
+    │   │   ...
+    │
     └───refinement
-        |   best_run.pth
-        |   ...
+        │   best_run.pth
+        │   ...
 ```
 
 To train the initialization stage, run
