@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from transformer_origianl import Transformer
 
 class RefinementDataset(Dataset):
     def __init__(self, device, data_path='.', train=False):
@@ -55,7 +54,7 @@ class TransformerRefinement(nn.Module):
         super(TransformerRefinement, self).__init__()
         self.in_src_projection = nn.Linear(in_features=in_parameter_size, out_features=d_model)
         self.positional_encoding = PositionalEncoding(d_model=d_model, max_len=max_len, stride=stride, device=device)
-        self.transformer = Transformer(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers, \
+        self.transformer = nn.Transformer(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers, \
                     dim_feedforward=dim_feedforward, batch_first=batch_first)
         self.generator = nn.Linear(in_features=d_model, out_features=out_parameter_size)
     def forward(self, src: torch.Tensor):

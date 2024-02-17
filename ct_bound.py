@@ -9,7 +9,6 @@ from torch.utils.data import Dataset, DataLoader
 from skimage.metrics import structural_similarity as compare_ssim
 from skimage.metrics import peak_signal_noise_ratio as compare_psnr
 from skimage.metrics import mean_squared_error as compare_mse
-from transformer_origianl import Transformer
 from init_training import ParaEst
 from ref_training import TransformerRefinement, PositionalEncoding
 
@@ -26,7 +25,7 @@ class RefinementDataset(Dataset):
     def __getitem__(self, idx):
         return self.noisy_img[idx, :, :, :], self.gt_img[idx, :, :, :], self.alpha[idx]
 
-def CT_Bound(args, cnn, refiner, assistance, datasetloader, n_img):
+def CT_Bound(args, cnn, refiner, assistance, datasetloader):
     bndry_gt_0_all = np.load('%sboundary_gt_test_d_0.npy'%args.data_path)
     bndry_gt_1_all = np.load('%sboundary_gt_test_d_1.npy'%args.data_path)
     bndry_gt_2_all = np.load('%sboundary_gt_test_d_2.npy'%args.data_path)
@@ -246,7 +245,7 @@ class Assistance(nn.Module):
         para = torch.cat([angles, x0y0], dim=1)
         para_bdry = torch.cat([angles, x0y0], dim=1)
         self.img_patches = nn.Unfold(self.R, stride=self.stride)(noisy_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
-        self.gt_img_patches = nn.Unfold(self.R, stride=self.stride)(gt_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches) #!
+        self.gt_img_patches = nn.Unfold(self.R, stride=self.stride)(gt_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
         dists, colors, patches = self.get_dists_and_patches(para)
         if colors_only:
             return colors
@@ -278,7 +277,12 @@ if __name__ == "__main__":
 
     dataset_test = RefinementDataset(device, data_path=args.data_path)
     test_loader = DataLoader(dataset_test, batch_size=1, shuffle=False, drop_last=True)
-    cnn = torch.load('./dataset/initialization/best_ran_pretrained.pth').to(device).eval()
-    refiner = torch.load('./dataset/refinement/best_ran_pretrained.pth').to(device).eval()
+
+    cnn = ParaEst().to(device)
+    cnn.load_state_dict(torch.load('./dataset/initialization/best_ran_pretrained_init.pth'))
+    cnn.eval()
+    refiner = TransformerRefinement(in_parameter_size=14, out_parameter_size=5, device=device).to(device)
+    refiner.load_state_dict(torch.load('./dataset/refinement/best_ran_pretrained_ref.pth'))
+    refiner.eval()
     assistance = Assistance(args.R, args.stride, args.eta, args.delta, device)
-    CT_Bound(args, cnn, refiner, assistance, test_loader, len(dataset_test))
+    CT_Bound(args, cnn, refiner, assistance, test_loader)
