@@ -20,7 +20,6 @@ CT-Bound
 │   ct_bound.py
 │   init_training.py
 │   ref_training.py
-│   transformer_origianl.py
 │   ...
 │
 └───dataset
