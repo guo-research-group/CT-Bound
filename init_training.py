@@ -223,7 +223,7 @@ if __name__ == "__main__":
         print(loss, avg_total_loss[epoch]) #!
         if avg_total_loss[epoch] < best_avg_loss:
             best_avg_loss = avg_total_loss[epoch]
-            torch.save(estimator, '%sbest_ran.pth'%args.data_path)
+            torch.save(estimator.state_dict(), '%sbest_ran.pth'%args.data_path)
             best_epoch = epoch
     showCurve(args, avg_total_loss, 'loss_curve')
     print('-- Best epoch is {}, with average loss of {}'.format(best_epoch, best_avg_loss))

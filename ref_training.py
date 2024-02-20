@@ -263,7 +263,7 @@ if __name__ == "__main__":
         if epoch >= args.loss_change:
             if avg_total_loss[epoch] < best_avg_loss:
                 best_avg_loss = avg_total_loss[epoch]
-                torch.save(refiner, '%sbest_ran.pth'%args.data_path)
+                torch.save(refiner.state_dict(), '%sbest_ran.pth'%args.data_path)
                 best_epoch = epoch
     np.save('%sloss_curve_total.npy'%args.data_path, avg_total_loss)
     showCurve(args, avg_total_loss[:args.loss_change], 'loss_curve_total_tf_1')
