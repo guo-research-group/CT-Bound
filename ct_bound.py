@@ -88,7 +88,7 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
             min_dist_2 = distance_2.min(axis=1)
             mean_dist_2 = min_dist_2.mean()
             print('%dth image:'%(j+1))
-            print('--- color map: SSIM: %.4f, PSNR: %.4f, MSE: %.4f'%(ssim, psnr, mse))
+            print('--- color map: SSIM: %.4f, PSNR (dB): %.4f, MSE: %.4f'%(ssim, psnr, mse))
             print('--- boundary map: D(0): %.4f, D(1): %.4f, D(2): %.4f'%(mean_dist_0, mean_dist_1, mean_dist_2))
 
             bndry_0 = (bndry_est[0] - bndry_est[0].min())/(bndry_est[0].max() - bndry_est[0].min())*255
