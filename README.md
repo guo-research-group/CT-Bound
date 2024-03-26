@@ -12,6 +12,8 @@ CT-Bound is a fast boundary estimation method for noisy images using a hybrid Co
 
 ![Qualitative comparison](/pic/comparison.png "Qualitative comparison")
 
+## Usage
+
 Our datasets and the pretrained model can be found <a href="https://drive.google.com/drive/folders/19TFgtBi1XZiea0ilWVbKvpalh4g7k8ZH?usp=drive_link" title="CT-Bound datasets">here</a>. We also have a video demo to show the real time processing <a href="https://youtu.be/MQAExIUfstw" title="CT-Bound video demo">here</a>. 
 
 The folder content is shown below. Please create the ``dataset`` folder and its subfolders and put the datasets into the the corresponding folders. Note that the trained model will be saved in the corresponding subfolders by default. In our implementation, the number of edge parameters in each patch is 3. 
@@ -46,5 +48,18 @@ To train the refinement stage, run
 To investigate the performance of whole pipeline with our the testing set, run
 
     python ct_bound.py
+
+## Citation
+
+```
+@misc{xu2024ctbound,
+      title={CT-Bound: Fast Boundary Estimation From Noisy Images Via Hybrid Convolution and Transformer Neural Networks}, 
+      author={Wei Xu and Junjie Luo and Qi Guo},
+      year={2024},
+      eprint={2403.16494},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
 
 Some of the code is borrowed from <a href="https://github.com/dorverbin/fieldofjunctions/tree/main" title="fieldofjunctions">FoJ</a>.
