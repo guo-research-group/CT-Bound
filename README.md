@@ -8,7 +8,7 @@ Elmore Family School of Electrical and Computer Engineering, Purdue University
 
 Contact: xu1639@purdue.edu
 
-CT-Bound is a fast boundary estimation method for noisy images using a hybrid Convolution and Transformer neural network. The proposed architecture decomposes boundary estimation into two tasks: local detection and global regularization of image boundaries. 
+CT-Bound (<a href="https://arxiv.org/abs/2403.16494" title="CT-Bound">**paper**</a>) is a fast boundary estimation method for noisy images using a hybrid Convolution and Transformer neural network. The proposed architecture decomposes boundary estimation into two tasks: local detection and global regularization of image boundaries. 
 
 ![Qualitative comparison](/pic/comparison.png "Qualitative comparison")
 
