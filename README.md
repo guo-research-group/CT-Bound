@@ -53,10 +53,10 @@ To investigate the performance of whole pipeline with our the testing set, run
 
 ```
 @article{xu2024ctbound,
-      title={CT-Bound: Fast Boundary Estimation From Noisy Images Via Hybrid Convolution and Transformer Neural Networks}, 
-      author={Wei Xu and Junjie Luo and Qi Guo},
-      journal={arXiv preprint arXiv:2403.16494},
-      year={2024}
+  title={CT-Bound: Fast Boundary Estimation From Noisy Images Via Hybrid Convolution and Transformer Neural Networks}, 
+  author={Wei Xu and Junjie Luo and Qi Guo},
+  journal={arXiv preprint arXiv:2403.16494},
+  year={2024}
 }
 ```
 
