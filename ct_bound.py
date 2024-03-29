@@ -2,6 +2,7 @@ import numpy as np
 import os
 import cv2
 import argparse
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,6 +33,8 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
     with torch.no_grad():
         invalid = 0
         for j, (ny_img, gt_img, alpha) in enumerate(datasetloader):
+            print('%dth image:'%(j+1))
+            start_time = time.time()
             alpha = alpha.item()
 
             t_img = ny_img.permute(0,3,1,2)
@@ -51,54 +54,57 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
             pm = torch.cat([colors.squeeze(0).flatten(start_dim=0,end_dim=1), angles.squeeze(0), x0y0.squeeze(0)], dim=0).permute(1,2,0).view(1,64*64,14)
 
             est = refiner(pm)
-            col_est, bndry_est, ssim, psnr, mse = assistance(est, ny_img, gt_img, alpha, colors_only=False)
+            if not args.metrics:
+                col_est, bndry_est = assistance(est, ny_img, gt_img, alpha, colors_only=False)
+                bndry_0 = (bndry_est[0] - bndry_est[0].min())/(bndry_est[0].max() - bndry_est[0].min())*255
+                cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_0.jpg'%(args.data_path, j), bndry_0)
+            else:
+                col_est, bndry_est, ssim, psnr, mse = assistance(est, ny_img, gt_img, alpha, colors_only=False, metrics=True)
+                bndry_gt_0 = bndry_gt_0_all[j, :, :]
+                bndry_gt_1 = bndry_gt_1_all[j, :, :]
+                bndry_gt_2 = bndry_gt_2_all[j, :, :]
+                bndry_gt_0_mask = cv2.inRange(bndry_gt_0, 0.1, 1)
+                bndry_gt_1_mask = cv2.inRange(bndry_gt_1, 0.1, 1)
+                bndry_gt_2_mask = cv2.inRange(bndry_gt_2, 0.1, 1)
+                bndry_est_0_mask = cv2.inRange(bndry_est[0], 0.1, 1)
+                bndry_est_1_mask = cv2.inRange(bndry_est[1], 0.1, 1)
+                bndry_est_2_mask = cv2.inRange(bndry_est[2], 0.1, 1)
+                bndry_gt_0_id = np.where(bndry_gt_0_mask>0)
+                bndry_gt_0_loc = np.concatenate((bndry_gt_0_id[0][:,None],bndry_gt_0_id[1][:,None]), axis=1)
+                bndry_gt_1_id = np.where(bndry_gt_1_mask>0)
+                bndry_gt_1_loc = np.concatenate((bndry_gt_1_id[0][:,None],bndry_gt_1_id[1][:,None]), axis=1)
+                bndry_gt_2_id = np.where(bndry_gt_2_mask>0)
+                bndry_gt_2_loc = np.concatenate((bndry_gt_2_id[0][:,None],bndry_gt_2_id[1][:,None]), axis=1)
+                bndry_est_0_id = np.where(bndry_est_0_mask>0)
+                bndry_est_0_loc = np.concatenate((bndry_est_0_id[0][:,None],bndry_est_0_id[1][:,None]), axis=1)
+                bndry_est_1_id = np.where(bndry_est_1_mask>0)
+                bndry_est_1_loc = np.concatenate((bndry_est_1_id[0][:,None],bndry_est_1_id[1][:,None]), axis=1)
+                bndry_est_2_id = np.where(bndry_est_2_mask>0)
+                bndry_est_2_loc = np.concatenate((bndry_est_2_id[0][:,None],bndry_est_2_id[1][:,None]), axis=1)
+                if bndry_est_2_loc.shape[0] == 0:
+                    invalid += 1
+                    print('--- Warning: %dth image does not contain enough boundaries to calculate, so skip it.'%(j+1))
+                    continue
+                distance_0 = np.sqrt(((bndry_gt_0_loc[None,:,:] - bndry_est_0_loc[:,None,:])**2).sum(axis=2))
+                min_dist_0 = distance_0.min(axis=1)
+                mean_dist_0 = min_dist_0.mean()
+                distance_1 = np.sqrt(((bndry_gt_1_loc[None,:,:] - bndry_est_1_loc[:,None,:])**2).sum(axis=2))
+                min_dist_1 = distance_1.min(axis=1)
+                mean_dist_1 = min_dist_1.mean()
+                distance_2 = np.sqrt(((bndry_gt_2_loc[None,:,:] - bndry_est_2_loc[:,None,:])**2).sum(axis=2))
+                min_dist_2 = distance_2.min(axis=1)
+                mean_dist_2 = min_dist_2.mean()
+                print('--- color map: SSIM: %.4f, PSNR (dB): %.4f, MSE: %.4f'%(ssim, psnr, mse))
+                print('--- boundary map: D(0): %.4f, D(1): %.4f, D(2): %.4f'%(mean_dist_0, mean_dist_1, mean_dist_2))
 
-            bndry_gt_0 = bndry_gt_0_all[j, :, :]
-            bndry_gt_1 = bndry_gt_1_all[j, :, :]
-            bndry_gt_2 = bndry_gt_2_all[j, :, :]
-            bndry_gt_0_mask = cv2.inRange(bndry_gt_0, 0.1, 1)
-            bndry_gt_1_mask = cv2.inRange(bndry_gt_1, 0.1, 1)
-            bndry_gt_2_mask = cv2.inRange(bndry_gt_2, 0.1, 1)
-            bndry_est_0_mask = cv2.inRange(bndry_est[0], 0.1, 1)
-            bndry_est_1_mask = cv2.inRange(bndry_est[1], 0.1, 1)
-            bndry_est_2_mask = cv2.inRange(bndry_est[2], 0.1, 1)
-            bndry_gt_0_id = np.where(bndry_gt_0_mask>0)
-            bndry_gt_0_loc = np.concatenate((bndry_gt_0_id[0][:,None],bndry_gt_0_id[1][:,None]), axis=1)
-            bndry_gt_1_id = np.where(bndry_gt_1_mask>0)
-            bndry_gt_1_loc = np.concatenate((bndry_gt_1_id[0][:,None],bndry_gt_1_id[1][:,None]), axis=1)
-            bndry_gt_2_id = np.where(bndry_gt_2_mask>0)
-            bndry_gt_2_loc = np.concatenate((bndry_gt_2_id[0][:,None],bndry_gt_2_id[1][:,None]), axis=1)
-            bndry_est_0_id = np.where(bndry_est_0_mask>0)
-            bndry_est_0_loc = np.concatenate((bndry_est_0_id[0][:,None],bndry_est_0_id[1][:,None]), axis=1)
-            bndry_est_1_id = np.where(bndry_est_1_mask>0)
-            bndry_est_1_loc = np.concatenate((bndry_est_1_id[0][:,None],bndry_est_1_id[1][:,None]), axis=1)
-            bndry_est_2_id = np.where(bndry_est_2_mask>0)
-            bndry_est_2_loc = np.concatenate((bndry_est_2_id[0][:,None],bndry_est_2_id[1][:,None]), axis=1)
-            if bndry_est_2_loc.shape[0] == 0:
-                invalid += 1
-                print('Warning: %dth image does not contain enough boundaries to calculate, so skip it.'%(j+1))
-                continue
-            distance_0 = np.sqrt(((bndry_gt_0_loc[None,:,:] - bndry_est_0_loc[:,None,:])**2).sum(axis=2))
-            min_dist_0 = distance_0.min(axis=1)
-            mean_dist_0 = min_dist_0.mean()
-            distance_1 = np.sqrt(((bndry_gt_1_loc[None,:,:] - bndry_est_1_loc[:,None,:])**2).sum(axis=2))
-            min_dist_1 = distance_1.min(axis=1)
-            mean_dist_1 = min_dist_1.mean()
-            distance_2 = np.sqrt(((bndry_gt_2_loc[None,:,:] - bndry_est_2_loc[:,None,:])**2).sum(axis=2))
-            min_dist_2 = distance_2.min(axis=1)
-            mean_dist_2 = min_dist_2.mean()
-            print('%dth image:'%(j+1))
-            print('--- color map: SSIM: %.4f, PSNR (dB): %.4f, MSE: %.4f'%(ssim, psnr, mse))
-            print('--- boundary map: D(0): %.4f, D(1): %.4f, D(2): %.4f'%(mean_dist_0, mean_dist_1, mean_dist_2))
-
-            bndry_0 = (bndry_est[0] - bndry_est[0].min())/(bndry_est[0].max() - bndry_est[0].min())*255
-            bndry_1 = (bndry_est[1] - bndry_est[1].min())/(bndry_est[1].max() - bndry_est[1].min())*255
-            bndry_2 = (bndry_est[2] - bndry_est[2].min())/(bndry_est[2].max() - bndry_est[2].min())*255
+                bndry_1 = (bndry_est[1] - bndry_est[1].min())/(bndry_est[1].max() - bndry_est[1].min())*255
+                bndry_2 = (bndry_est[2] - bndry_est[2].min())/(bndry_est[2].max() - bndry_est[2].min())*255
+                cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_1.jpg'%(args.data_path, j), bndry_1)
+                cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_2.jpg'%(args.data_path, j), bndry_2)
             smoothed_img = col_est[0, :, :, :].permute(1, 2, 0).detach().cpu().numpy()
-            cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_0.jpg'%(args.data_path, j), bndry_0)
-            cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_1.jpg'%(args.data_path, j), bndry_1)
-            cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_2.jpg'%(args.data_path, j), bndry_2)
             cv2.imwrite('%stest/ct_bound/%d_ref_col.jpg'%(args.data_path, j), smoothed_img/alpha*255)
+            running_time = time.time() - start_time
+            print('--- running time: %.4f s'%running_time)
 
 class Assistance(nn.Module):
     def __init__(self, R, stride, eta, delta, device):
@@ -237,7 +243,7 @@ class Assistance(nn.Module):
 
         return param
 
-    def forward(self, ests, noisy_image, gt_image, alpha, colors_only=True):
+    def forward(self, ests, noisy_image, gt_image, alpha, colors_only=True, metrics=False):
         ests = ests.permute(0,2,1).view(self.batch_size, 5, self.H_patches, self.W_patches)
         angles = torch.remainder((ests[:, :3, :, :] + 1) * np.pi, 2 * np.pi)
         angles = torch.sort(angles, dim=1)[0]
@@ -252,14 +258,17 @@ class Assistance(nn.Module):
         else:
             self.global_boundaries = self.local2global(self.dists2boundaries(dists))
             global_bndry = [self.global_boundaries.squeeze().detach().cpu().numpy()]
-            for thres in [0.1, 0.2]:
-                indicator = self.col_diff(colors, thres*alpha)
-                para_new = self.modify_para(para_bdry, indicator)
-                dists_filter, _, _ = self.get_dists_and_patches(para_new)
-                global_bndry.append(self.local2global(self.dists2boundaries(dists_filter)).squeeze().detach().cpu().numpy().copy())
             self.global_image = self.local2global(patches)
-            ssim, psnr, mse = self.calculate_sim(gt_image, self.global_image)
-            return self.global_image, global_bndry, ssim, psnr, mse
+            if metrics:
+                for thres in [0.1, 0.2]:
+                    indicator = self.col_diff(colors, thres*alpha)
+                    para_new = self.modify_para(para_bdry, indicator)
+                    dists_filter, _, _ = self.get_dists_and_patches(para_new)
+                    global_bndry.append(self.local2global(self.dists2boundaries(dists_filter)).squeeze().detach().cpu().numpy().copy())
+                ssim, psnr, mse = self.calculate_sim(gt_image, self.global_image)
+                return self.global_image, global_bndry, ssim, psnr, mse
+            else:
+                return self.global_image, global_bndry
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -269,6 +278,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', type=str, default='./dataset/refinement/', help='Path of dataset')
     parser.add_argument('--eta', type=float, default=0.01, help='Width parameter for Heaviside functions')
     parser.add_argument('--delta', type=float, default=0.05, help='delta parameter')
+    parser.add_argument('--metrics', type=bool, default=False, help='whether calculate metrics')
     args = parser.parse_args()
 
     np.random.seed(1896)
