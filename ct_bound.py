@@ -49,7 +49,7 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
             angles = (angles - np.pi) / np.pi
             x0y0 = x0y0 / 3
             params = torch.cat([angles, x0y0], dim=1).permute(0,2,3,1).flatten(start_dim=1,end_dim=2)
-            colors = assistance(params, ny_img, gt_img, alpha, colors_only=True)
+            colors = assistance(params, ny_img, gt_img, alpha)
             colors = (colors - 6) / 6
             pm = torch.cat([colors.squeeze(0).flatten(start_dim=0,end_dim=1), angles.squeeze(0), x0y0.squeeze(0)], dim=0).permute(1,2,0).view(1,64*64,14)
 
