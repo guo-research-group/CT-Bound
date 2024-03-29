@@ -56,8 +56,6 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
             est = refiner(pm)
             if not args.metrics:
                 col_est, bndry_est = assistance(est, ny_img, gt_img, alpha, colors_only=False)
-                bndry_0 = bndry_est[0]*255
-                cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_0.jpg'%(args.data_path, j), bndry_0)
             else:
                 col_est, bndry_est, ssim, psnr, mse = assistance(est, ny_img, gt_img, alpha, colors_only=False, metrics=True)
                 bndry_gt_0 = bndry_gt_0_all[j, :, :]
@@ -101,6 +99,9 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
                 bndry_2 = bndry_est[2]*255
                 cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_1.jpg'%(args.data_path, j), bndry_1)
                 cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_2.jpg'%(args.data_path, j), bndry_2)
+
+            bndry_0 = bndry_est[0]*255
+            cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_0.jpg'%(args.data_path, j), bndry_0)
             smoothed_img = col_est[0, :, :, :].permute(1, 2, 0).detach().cpu().numpy()
             cv2.imwrite('%stest/ct_bound/%d_ref_col.jpg'%(args.data_path, j), smoothed_img/alpha*255)
             running_time = time.time() - start_time
