@@ -56,7 +56,7 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
             est = refiner(pm)
             if not args.metrics:
                 col_est, bndry_est = assistance(est, ny_img, gt_img, alpha, colors_only=False)
-                bndry_0 = (bndry_est[0] - bndry_est[0].min())/(bndry_est[0].max() - bndry_est[0].min())*255
+                bndry_0 = bndry_est[0]*255
                 cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_0.jpg'%(args.data_path, j), bndry_0)
             else:
                 col_est, bndry_est, ssim, psnr, mse = assistance(est, ny_img, gt_img, alpha, colors_only=False, metrics=True)
@@ -97,8 +97,8 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
                 print('--- color map: SSIM: %.4f, PSNR (dB): %.4f, MSE: %.4f'%(ssim, psnr, mse))
                 print('--- boundary map: D(0): %.4f, D(1): %.4f, D(2): %.4f'%(mean_dist_0, mean_dist_1, mean_dist_2))
 
-                bndry_1 = (bndry_est[1] - bndry_est[1].min())/(bndry_est[1].max() - bndry_est[1].min())*255
-                bndry_2 = (bndry_est[2] - bndry_est[2].min())/(bndry_est[2].max() - bndry_est[2].min())*255
+                bndry_1 = bndry_est[1]*255
+                bndry_2 = bndry_est[2]*255
                 cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_1.jpg'%(args.data_path, j), bndry_1)
                 cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_2.jpg'%(args.data_path, j), bndry_2)
             smoothed_img = col_est[0, :, :, :].permute(1, 2, 0).detach().cpu().numpy()
@@ -251,7 +251,6 @@ class Assistance(nn.Module):
         para = torch.cat([angles, x0y0], dim=1)
         para_bdry = torch.cat([angles, x0y0], dim=1)
         self.img_patches = nn.Unfold(self.R, stride=self.stride)(noisy_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
-        self.gt_img_patches = nn.Unfold(self.R, stride=self.stride)(gt_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
         dists, colors, patches = self.get_dists_and_patches(para)
         if colors_only:
             return colors
