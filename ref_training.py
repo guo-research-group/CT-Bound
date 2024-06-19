@@ -6,6 +6,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 class RefinementDataset(Dataset):
@@ -13,13 +14,13 @@ class RefinementDataset(Dataset):
         if train:
             input_para = np.load(os.path.join(data_path, 'param_src_train.npy'))
             target_para = np.load(os.path.join(data_path, 'param_tgt_train.npy'))
-            noisy_img = np.load(os.path.join(data_path, 'images_noisy_train.npy'))
+            noisy_img = np.load(os.path.join(data_path, 'images_ny_train.npy'))
             gt_img = np.load(os.path.join(data_path, 'images_gt_train.npy'))
             alpha = np.load(os.path.join(data_path, 'alpha_train.npy'))
         else:
             input_para = np.load(os.path.join(data_path, 'param_src_test.npy'))
             target_para = np.load(os.path.join(data_path, 'param_tgt_test.npy'))
-            noisy_img = np.load(os.path.join(data_path, 'images_noisy_test.npy'))
+            noisy_img = np.load(os.path.join(data_path, 'images_ny_test.npy'))
             gt_img = np.load(os.path.join(data_path, 'images_gt_test.npy'))
             alpha = np.load(os.path.join(data_path, 'alpha_test.npy'))
         self.input_para = torch.from_numpy(input_para).float().flatten(start_dim=1,end_dim=2).to(device)
@@ -49,17 +50,20 @@ class PositionalEncoding(nn.Module):
         return x
 
 class TransformerRefinement(nn.Module):
-    def __init__(self, max_len=64, stride=2, in_parameter_size=14, out_parameter_size=5, d_model=128, nhead=8, num_encoder_layers=8, num_decoder_layers=0, \
-                    dim_feedforward=256, batch_first=True, device=None):
+    def __init__(self, max_len=64, stride=2, in_parameter_size=14, out_parameter_size=5, d_model=128, nhead=8, num_encoder_layers=8, \
+                    dim_feedforward=256, layer_norm_eps=1e-5, batch_first=True, bias=True, device=None):
         super(TransformerRefinement, self).__init__()
         self.in_src_projection = nn.Linear(in_features=in_parameter_size, out_features=d_model)
         self.positional_encoding = PositionalEncoding(d_model=d_model, max_len=max_len, stride=stride, device=device)
-        self.transformer = nn.Transformer(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers, \
-                    dim_feedforward=dim_feedforward, batch_first=batch_first)
+        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout=0.1,
+                                                    activation=F.relu, layer_norm_eps=layer_norm_eps, batch_first=batch_first, norm_first=False,
+                                                    bias=bias, device=device)
+        encoder_norm = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, device=device)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
         self.generator = nn.Linear(in_features=d_model, out_features=out_parameter_size)
     def forward(self, src: torch.Tensor):
         src_emb = self.positional_encoding(self.in_src_projection(src))
-        outs = self.transformer.encoder(src_emb)
+        outs = self.encoder(src_emb)
         outs = self.generator(outs)
         return outs
 
@@ -217,11 +221,11 @@ if __name__ == "__main__":
     parser.add_argument('--input_size', type=int, default=14, help='Input layer size')
     parser.add_argument('--output_size', type=int, default=5, help='Output layer size')
     parser.add_argument('--eta', type=float, default=0.01, help='Width parameter for Heaviside functions')
-    parser.add_argument('--delta', type=float, default=0.05, help='delta in loss function')
+    parser.add_argument('--delta', type=float, default=0.05, help='Delta in loss function')
     args = parser.parse_args()
 
-    np.random.seed(1896)
-    torch.manual_seed(1896)
+    np.random.seed(1869)
+    torch.manual_seed(1869)
     device = torch.device(args.cuda)
 
     dataset_train = RefinementDataset(device, data_path=args.data_path, train=True)
@@ -263,7 +267,7 @@ if __name__ == "__main__":
         if epoch >= args.loss_change:
             if avg_total_loss[epoch] < best_avg_loss:
                 best_avg_loss = avg_total_loss[epoch]
-                torch.save(refiner.state_dict(), '%sbest_ran.pth'%args.data_path)
+                torch.save(refiner.state_dict(), './dataset/best_ran_ref.pth')
                 best_epoch = epoch
     np.save('%sloss_curve_total.npy'%args.data_path, avg_total_loss)
     showCurve(args, avg_total_loss[:args.loss_change], 'loss_curve_total_tf_1')

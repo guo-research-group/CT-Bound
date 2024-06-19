@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 class ParaDataset(Dataset):
     def __init__(self, device, data_path='.', train=False):
         if train:
-            X = np.load(os.path.join(data_path, 'patches_noisy_train.npy'))
+            X = np.load(os.path.join(data_path, 'patches_ny_train.npy'))
             y = np.load(os.path.join(data_path, 'patches_gt_train.npy'))
             alpha = np.load(os.path.join(data_path, 'alpha_train.npy'))
         else:
-            X = np.load(os.path.join(data_path, 'patches_noisy_test.npy'))
+            X = np.load(os.path.join(data_path, 'patches_ny_test.npy'))
             y = np.load(os.path.join(data_path, 'patches_gt_test.npy'))
             alpha = np.load(os.path.join(data_path, 'alpha_test.npy'))
         self.X = torch.from_numpy(X).float().to(device)
@@ -192,8 +192,8 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', type=str, default='./dataset/initialization/', help='Path of dataset')
     args = parser.parse_args()
     
-    np.random.seed(1896)
-    torch.manual_seed(1896)
+    np.random.seed(1869)
+    torch.manual_seed(1869)
     device = torch.device(args.cuda)
     dataset_train = ParaDataset(device, data_path=args.data_path, train=True)
     train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, drop_last=True)
@@ -220,10 +220,9 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
         avg_total_loss[epoch] = evaluateDataset(args, criteria, estimator, test_loader, len(dataset_test))
-        print(loss, avg_total_loss[epoch]) #!
         if avg_total_loss[epoch] < best_avg_loss:
             best_avg_loss = avg_total_loss[epoch]
-            torch.save(estimator.state_dict(), '%sbest_ran.pth'%args.data_path)
+            torch.save(estimator.state_dict(), './dataset/best_ran_init.pth')
             best_epoch = epoch
     showCurve(args, avg_total_loss, 'loss_curve')
     print('-- Best epoch is {}, with average loss of {}'.format(best_epoch, best_avg_loss))

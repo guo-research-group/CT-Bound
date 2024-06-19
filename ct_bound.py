@@ -3,39 +3,44 @@ import os
 import cv2
 import argparse
 import time
+import scipy.io as sio
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from skimage.metrics import structural_similarity as compare_ssim
-from skimage.metrics import peak_signal_noise_ratio as compare_psnr
-from skimage.metrics import mean_squared_error as compare_mse
 from init_training import ParaEst
 from ref_training import TransformerRefinement, PositionalEncoding
+import pdb
 
 class RefinementDataset(Dataset):
-    def __init__(self, device, data_path='.'):
-        noisy_img = np.load(os.path.join(data_path, 'images_noisy_test.npy'))
-        gt_img = np.load(os.path.join(data_path, 'images_gt_test.npy'))
-        alpha = np.load(os.path.join(data_path, 'alpha_test.npy'))
-        self.noisy_img = torch.from_numpy(noisy_img).float().to(device)
+    def __init__(self, device, data_path='.', eval=None, eval_alpha=0):
+        if eval == None:
+            ny_img = np.load(os.path.join(data_path, 'images_ny_test.npy'))
+            gt_img = np.load(os.path.join(data_path, 'images_gt_test.npy'))
+            alpha = np.load(os.path.join(data_path, 'alpha_test.npy'))
+        else:
+            ny_img = np.load(os.path.join(data_path, eval, 'images_ny_test_alpha_%d.npy'%eval_alpha))
+            gt_img = np.load(os.path.join(data_path, eval, 'images_gt_test_alpha_%d.npy'%eval_alpha))
+        self.ny_img = torch.from_numpy(ny_img).float().to(device)
         self.gt_img = torch.from_numpy(gt_img).float().to(device)
-        self.alpha = torch.from_numpy(alpha).float().to(device)
+        if eval is None:
+            self.alpha = torch.from_numpy(alpha).float().to(device)
+        else:
+            self.alpha = (torch.ones((gt_img.shape[0]))*eval_alpha).float().to(device)
     def __len__(self):
         return self.gt_img.shape[0]
     def __getitem__(self, idx):
-        return self.noisy_img[idx, :, :, :], self.gt_img[idx, :, :, :], self.alpha[idx]
+        return self.ny_img[idx, :, :, :], self.gt_img[idx, :, :, :], self.alpha[idx]
 
-def CT_Bound(args, cnn, refiner, assistance, datasetloader):
-    bndry_gt_0_all = np.load('%sboundary_gt_test_d_0.npy'%args.data_path)
-    bndry_gt_1_all = np.load('%sboundary_gt_test_d_1.npy'%args.data_path)
-    bndry_gt_2_all = np.load('%sboundary_gt_test_d_2.npy'%args.data_path)
+def CT_Bound(args, cnn, refiner, helper, datasetloader):
     with torch.no_grad():
-        invalid = 0
+        n_invalid = 0
+        total_running_time = 0
         for j, (ny_img, gt_img, alpha) in enumerate(datasetloader):
             print('%dth image:'%(j+1))
-            start_time = time.time()
             alpha = alpha.item()
+            cv2.imwrite('%stest_visualization/%d_col_gt.png'%(args.data_path, j), gt_img.squeeze().detach().cpu().numpy()/alpha*255)
+            cv2.imwrite('%stest_visualization/%d_img_ny.png'%(args.data_path, j), ny_img.squeeze().detach().cpu().numpy()/alpha*255)
+            start_time = time.time()
 
             t_img = ny_img.permute(0,3,1,2)
             img_patches = nn.Unfold(args.R, stride=args.stride)(t_img).view(1, 3, 21, 21, 64, 64)
@@ -49,65 +54,28 @@ def CT_Bound(args, cnn, refiner, assistance, datasetloader):
             angles = (angles - np.pi) / np.pi
             x0y0 = x0y0 / 3
             params = torch.cat([angles, x0y0], dim=1).permute(0,2,3,1).flatten(start_dim=1,end_dim=2)
-            colors = assistance(params, ny_img, gt_img, alpha)
+            colors = helper(params, ny_img)
             colors = (colors - 6) / 6
             pm = torch.cat([colors.squeeze(0).flatten(start_dim=0,end_dim=1), angles.squeeze(0), x0y0.squeeze(0)], dim=0).permute(1,2,0).view(1,64*64,14)
 
             est = refiner(pm)
-            if not args.metrics:
-                col_est, bndry_est = assistance(est, ny_img, gt_img, alpha, colors_only=False)
-            else:
-                col_est, bndry_est, ssim, psnr, mse = assistance(est, ny_img, gt_img, alpha, colors_only=False, metrics=True)
-                bndry_gt_0 = bndry_gt_0_all[j, :, :]
-                bndry_gt_1 = bndry_gt_1_all[j, :, :]
-                bndry_gt_2 = bndry_gt_2_all[j, :, :]
-                bndry_gt_0_mask = cv2.inRange(bndry_gt_0, 0.1, 1)
-                bndry_gt_1_mask = cv2.inRange(bndry_gt_1, 0.1, 1)
-                bndry_gt_2_mask = cv2.inRange(bndry_gt_2, 0.1, 1)
-                bndry_est_0_mask = cv2.inRange(bndry_est[0], 0.1, 1)
-                bndry_est_1_mask = cv2.inRange(bndry_est[1], 0.1, 1)
-                bndry_est_2_mask = cv2.inRange(bndry_est[2], 0.1, 1)
-                bndry_gt_0_id = np.where(bndry_gt_0_mask>0)
-                bndry_gt_0_loc = np.concatenate((bndry_gt_0_id[0][:,None],bndry_gt_0_id[1][:,None]), axis=1)
-                bndry_gt_1_id = np.where(bndry_gt_1_mask>0)
-                bndry_gt_1_loc = np.concatenate((bndry_gt_1_id[0][:,None],bndry_gt_1_id[1][:,None]), axis=1)
-                bndry_gt_2_id = np.where(bndry_gt_2_mask>0)
-                bndry_gt_2_loc = np.concatenate((bndry_gt_2_id[0][:,None],bndry_gt_2_id[1][:,None]), axis=1)
-                bndry_est_0_id = np.where(bndry_est_0_mask>0)
-                bndry_est_0_loc = np.concatenate((bndry_est_0_id[0][:,None],bndry_est_0_id[1][:,None]), axis=1)
-                bndry_est_1_id = np.where(bndry_est_1_mask>0)
-                bndry_est_1_loc = np.concatenate((bndry_est_1_id[0][:,None],bndry_est_1_id[1][:,None]), axis=1)
-                bndry_est_2_id = np.where(bndry_est_2_mask>0)
-                bndry_est_2_loc = np.concatenate((bndry_est_2_id[0][:,None],bndry_est_2_id[1][:,None]), axis=1)
-                if bndry_est_2_loc.shape[0] == 0:
-                    invalid += 1
-                    print('--- Warning: %dth image does not contain enough boundaries to calculate, so skip it.'%(j+1))
-                    continue
-                distance_0 = np.sqrt(((bndry_gt_0_loc[None,:,:] - bndry_est_0_loc[:,None,:])**2).sum(axis=2))
-                min_dist_0 = distance_0.min(axis=1)
-                mean_dist_0 = min_dist_0.mean()
-                distance_1 = np.sqrt(((bndry_gt_1_loc[None,:,:] - bndry_est_1_loc[:,None,:])**2).sum(axis=2))
-                min_dist_1 = distance_1.min(axis=1)
-                mean_dist_1 = min_dist_1.mean()
-                distance_2 = np.sqrt(((bndry_gt_2_loc[None,:,:] - bndry_est_2_loc[:,None,:])**2).sum(axis=2))
-                min_dist_2 = distance_2.min(axis=1)
-                mean_dist_2 = min_dist_2.mean()
-                print('--- color map: SSIM: %.4f, PSNR (dB): %.4f, MSE: %.4f'%(ssim, psnr, mse))
-                print('--- boundary map: D(0): %.4f, D(1): %.4f, D(2): %.4f'%(mean_dist_0, mean_dist_1, mean_dist_2))
+            col_est, bndry_est = helper(est, ny_img, colors_only=False)
 
-                bndry_1 = bndry_est[1]*255
-                bndry_2 = bndry_est[2]*255
-                cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_1.jpg'%(args.data_path, j), bndry_1)
-                cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_2.jpg'%(args.data_path, j), bndry_2)
-
-            bndry_0 = bndry_est[0]*255
-            cv2.imwrite('%stest/ct_bound/%d_ref_bndry_d_0.jpg'%(args.data_path, j), bndry_0)
-            smoothed_img = col_est[0, :, :, :].permute(1, 2, 0).detach().cpu().numpy()
-            cv2.imwrite('%stest/ct_bound/%d_ref_col.jpg'%(args.data_path, j), smoothed_img/alpha*255)
             running_time = time.time() - start_time
+
+            bndry = bndry_est*255
+            if args.eval is not None:
+                sio.savemat('%stest_mat/%d.mat'%(args.data_path, j), {'img': bndry_est})
+            cv2.imwrite('%stest_visualization/%d_ref_bndry.png'%(args.data_path, j), bndry)
+            smoothed_img = col_est[0, :, :, :].permute(1, 2, 0).detach().cpu().numpy()
+            cv2.imwrite('%stest_visualization/%d_ref_col.png'%(args.data_path, j), smoothed_img/alpha*255)
+            total_running_time += running_time
             print('--- running time: %.4f s'%running_time)
 
-class Assistance(nn.Module):
+        n_valid = len(datasetloader) - n_invalid
+        print('\nAverage running time: %.4f s'%(total_running_time/n_valid))
+
+class Helper(nn.Module):
     def __init__(self, R, stride, eta, delta, device):
         super().__init__()
         y, x = torch.meshgrid([torch.linspace(-1.0, 1.0, R), \
@@ -188,111 +156,46 @@ class Assistance(nn.Module):
         d2 = dists[:, 1:2, :, :, :, :]
         minabsdist = torch.where(d1 < 0.0, -d1, torch.where(d2 < 0.0, torch.min(d1, -d2), torch.min(d1, d2)))
         return 1.0 / (1.0 + (minabsdist / self.delta) ** 2)
-    
-    def calculate_sim(self, tgt_imgs, est_imgs):
-        tgt_imgs_np = tgt_imgs.detach().cpu().numpy()
-        est_imgs_np = est_imgs.detach().cpu().numpy().transpose(0,2,3,1)
-        ssim = 0
-        psnr = 0
-        mse = 0
-        n = tgt_imgs.shape[0]
-        for i in range(n):
-            tgt_img = cv2.cvtColor(tgt_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
-            est_img = cv2.cvtColor(est_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
-            ssim += compare_ssim(tgt_img, est_img, data_range=17)
-            psnr += compare_psnr(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:], data_range=17)
-            mse += compare_mse(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:])
-        return ssim/n, psnr/n, mse/n
-    
-    def col_diff(self, colors, thres):
-        col_diff_01 = torch.sqrt(((colors[:, :, 1, :, :] - colors[:, :, 0, :, :])**2).sum(1))
-        col_diff_12 = torch.sqrt(((colors[:, :, 2, :, :] - colors[:, :, 1, :, :])**2).sum(1))
-        col_diff_20 = torch.sqrt(((colors[:, :, 0, :, :] - colors[:, :, 2, :, :])**2).sum(1))
-        edge_01 = torch.where(col_diff_01>thres, 1, 0)
-        edge_12 = torch.where(col_diff_12>thres, 2, 0)
-        edge_20 = torch.where(col_diff_20>thres, 4, 0)
-        indicator = edge_01 + edge_12 + edge_20
-        return indicator
 
-    def modify_para(self, param_org, indicator):
-        param = param_org.clone()
-        case_0_id = torch.where(indicator==0)
-        case_1_id = torch.where(indicator==1)
-        case_2_id = torch.where(indicator==2)
-        case_3_id = torch.where(indicator==3)
-        case_4_id = torch.where(indicator==4)
-        case_5_id = torch.where(indicator==5)
-        case_6_id = torch.where(indicator==6)
-
-        param[case_0_id[0], :3, case_0_id[1], case_0_id[2]] = 0
-        param[case_0_id[0], 3:, case_0_id[1], case_0_id[2]] = -3
-
-        param[case_1_id[0], 1, case_1_id[1], case_1_id[2]] = param[case_1_id[0], 2, case_1_id[1], case_1_id[2]]
-        param[case_1_id[0], 0, case_1_id[1], case_1_id[2]] = param[case_1_id[0], 2, case_1_id[1], case_1_id[2]]
-
-        param[case_2_id[0], 2, case_2_id[1], case_2_id[2]] = param[case_2_id[0], 1, case_2_id[1], case_2_id[2]]
-        param[case_2_id[0], 0, case_2_id[1], case_2_id[2]] = param[case_2_id[0], 1, case_2_id[1], case_2_id[2]]
-
-        param[case_3_id[0], 0, case_3_id[1], case_3_id[2]] = param[case_3_id[0], 2, case_3_id[1], case_3_id[2]]
-
-        param[case_4_id[0], 2, case_4_id[1], case_4_id[2]] = param[case_4_id[0], 0, case_4_id[1], case_4_id[2]]
-        param[case_4_id[0], 1, case_4_id[1], case_4_id[2]] = param[case_4_id[0], 0, case_4_id[1], case_4_id[2]]
-
-        param[case_5_id[0], 1, case_5_id[1], case_5_id[2]] = param[case_5_id[0], 0, case_5_id[1], case_5_id[2]]
-
-        param[case_6_id[0], 2, case_6_id[1], case_6_id[2]] = param[case_6_id[0], 1, case_6_id[1], case_6_id[2]]
-
-        return param
-
-    def forward(self, ests, noisy_image, gt_image, alpha, colors_only=True, metrics=False):
+    def forward(self, ests, noisy_image, colors_only=True):
         ests = ests.permute(0,2,1).view(self.batch_size, 5, self.H_patches, self.W_patches)
         angles = torch.remainder((ests[:, :3, :, :] + 1) * np.pi, 2 * np.pi)
         angles = torch.sort(angles, dim=1)[0]
         x0y0 = ests[:, 3:, :, :] * 3
         para = torch.cat([angles, x0y0], dim=1)
-        para_bdry = torch.cat([angles, x0y0], dim=1)
         self.img_patches = nn.Unfold(self.R, stride=self.stride)(noisy_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
         dists, colors, patches = self.get_dists_and_patches(para)
         if colors_only:
             return colors
         else:
             self.global_boundaries = self.local2global(self.dists2boundaries(dists))
-            global_bndry = [self.global_boundaries.squeeze().detach().cpu().numpy()]
+            global_bndry = self.global_boundaries.squeeze().detach().cpu().numpy()
             self.global_image = self.local2global(patches)
-            if metrics:
-                for thres in [0.1, 0.2]:
-                    indicator = self.col_diff(colors, thres*alpha)
-                    para_new = self.modify_para(para_bdry, indicator)
-                    dists_filter, _, _ = self.get_dists_and_patches(para_new)
-                    global_bndry.append(self.local2global(self.dists2boundaries(dists_filter)).squeeze().detach().cpu().numpy().copy())
-                ssim, psnr, mse = self.calculate_sim(gt_image, self.global_image)
-                return self.global_image, global_bndry, ssim, psnr, mse
-            else:
-                return self.global_image, global_bndry
+            return self.global_image, global_bndry
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cuda', type=str, default='cuda:0', help='Enable cuda')
+    parser.add_argument('--cuda', type=str, default='cuda', help='Enable cuda')
     parser.add_argument('--R', type=int, default=21, help='Patch size')
     parser.add_argument('--stride', type=int, default=2, help='Patch size')
     parser.add_argument('--data_path', type=str, default='./dataset/refinement/', help='Path of dataset')
+    # parser.add_argument('--data_path', type=str, default='./dataset/eval/', help='Path of dataset')
     parser.add_argument('--eta', type=float, default=0.01, help='Width parameter for Heaviside functions')
-    parser.add_argument('--delta', type=float, default=0.05, help='delta parameter')
-    parser.add_argument('--metrics', type=bool, default=False, help='whether calculate metrics')
+    parser.add_argument('--delta', type=float, default=0.05, help='Delta parameter')
+    parser.add_argument('--eval', type=str, default=None, choices=[None,'BSDS500','NYUDv2'], help='Whether to evaluate the model with BSDS500 or NYUDv2')
+    parser.add_argument('--eval_alpha', type=int, default=0, choices=[2,4,6,8], help='Photon level for evaluation with BSDS500 or NYUDv2')
     args = parser.parse_args()
 
-    np.random.seed(1896)
-    torch.manual_seed(1896)
     device = torch.device(args.cuda)
 
-    dataset_test = RefinementDataset(device, data_path=args.data_path)
+    dataset_test = RefinementDataset(device, data_path=args.data_path, eval=args.eval, eval_alpha=args.eval_alpha)
     test_loader = DataLoader(dataset_test, batch_size=1, shuffle=False, drop_last=True)
 
     cnn = ParaEst().to(device)
-    cnn.load_state_dict(torch.load('./dataset/initialization/best_ran_pretrained_init.pth'))
+    cnn.load_state_dict(torch.load('./dataset/best_ran_pretrained_init.pth'))
     cnn.eval()
     refiner = TransformerRefinement(in_parameter_size=14, out_parameter_size=5, device=device).to(device)
-    refiner.load_state_dict(torch.load('./dataset/refinement/best_ran_pretrained_ref.pth'))
+    refiner.load_state_dict(torch.load('./dataset/best_ran_pretrained_ref.pth'))
     refiner.eval()
-    assistance = Assistance(args.R, args.stride, args.eta, args.delta, device)
-    CT_Bound(args, cnn, refiner, assistance, test_loader)
+    helper = Helper(args.R, args.stride, args.eta, args.delta, device)
+    CT_Bound(args, cnn, refiner, helper, test_loader)

@@ -1,0 +1,1 @@
+The code is from <a href="https://github.com/MengyangPu/EDTER" title="EDTER">EDTER repo</a> to evaluate the model using <a href="https://drive.google.com/drive/folders/19TFgtBi1XZiea0ilWVbKvpalh4g7k8ZH?usp=drive_link" title="CT-Bound datasets">synthetic BSDS500 and NYUDv2 datasets</a>. Please modify Line 6 and 40 accordingly in ``eval_bsds.m`` and ``eval_nyud.m``. 
