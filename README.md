@@ -96,7 +96,7 @@ To calculate the ODS F1-score, run
 or
 
     cd eval
-    matlab -nodisplay -nodesktop -nosplash -r  eval_nyud.m
+    matlab -nodisplay -nodesktop -nosplash -r eval_nyud.m
 
 Note that if you want to calculate the metrics for color maps, add ``--metrics True`` parameter with the calling command above. 
 
