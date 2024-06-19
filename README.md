@@ -36,6 +36,11 @@ CT-Bound
 │   ref_training.py
 │   ...
 │
+└───eval
+│   │   eval_bsds.m
+│   │   eval_nyud.m
+│   │   ...
+│
 └───dataset
     │   best_ran_pretrained_init.pth
     │   best_ran_pretrained_ref.pth
