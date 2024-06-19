@@ -73,7 +73,7 @@ To investigate the performance of whole pipeline with the MS COCO testing set, r
 
     python ct_bound.py
 
-### 1.2.2 BSDS500 and NYUDv2
+#### 1.2.2 BSDS500 and NYUDv2
 
 To evaluate with BSDS500 or NYUDv2 testing set on photo level of $n$ ($\alpha_{\text{test}}=n$), run
 
