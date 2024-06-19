@@ -2,3 +2,4 @@ tqdm
 matplotlib
 opencv-python
 scipy
+scikit-image

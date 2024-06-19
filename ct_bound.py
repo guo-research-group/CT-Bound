@@ -7,9 +7,11 @@ import scipy.io as sio
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+from skimage.metrics import structural_similarity as compare_ssim
+from skimage.metrics import peak_signal_noise_ratio as compare_psnr
+from skimage.metrics import mean_squared_error as compare_mse
 from init_training import ParaEst
 from ref_training import TransformerRefinement, PositionalEncoding
-import pdb
 
 class RefinementDataset(Dataset):
     def __init__(self, device, data_path='.', eval=None, eval_alpha=0):
@@ -33,7 +35,7 @@ class RefinementDataset(Dataset):
 
 def CT_Bound(args, cnn, refiner, helper, datasetloader):
     with torch.no_grad():
-        n_invalid = 0
+        total_ssim, total_psnr, total_mse = 0, 0, 0
         total_running_time = 0
         for j, (ny_img, gt_img, alpha) in enumerate(datasetloader):
             print('%dth image:'%(j+1))
@@ -59,7 +61,14 @@ def CT_Bound(args, cnn, refiner, helper, datasetloader):
             pm = torch.cat([colors.squeeze(0).flatten(start_dim=0,end_dim=1), angles.squeeze(0), x0y0.squeeze(0)], dim=0).permute(1,2,0).view(1,64*64,14)
 
             est = refiner(pm)
-            col_est, bndry_est = helper(est, ny_img, colors_only=False)
+            if not args.metrics:
+                col_est, bndry_est = helper(est, ny_img, colors_only=False)
+            else:
+                col_est, bndry_est, ssim, psnr, mse = helper(est, ny_img, gt_image=gt_img, alpha=alpha, colors_only=False)
+                total_ssim += ssim
+                total_psnr += psnr
+                total_mse += mse
+                print('--- color map: SSIM: %.4f, PSNR (dB): %.4f, MSE: %.4f'%(ssim, psnr, mse))
 
             running_time = time.time() - start_time
 
@@ -70,10 +79,11 @@ def CT_Bound(args, cnn, refiner, helper, datasetloader):
             smoothed_img = col_est[0, :, :, :].permute(1, 2, 0).detach().cpu().numpy()
             cv2.imwrite('%stest_visualization/%d_ref_col.png'%(args.data_path, j), smoothed_img/alpha*255)
             total_running_time += running_time
-            print('--- running time: %.4f s'%running_time)
+            print('--- running time: %.3f s'%running_time)
 
-        n_valid = len(datasetloader) - n_invalid
-        print('\nAverage running time: %.4f s'%(total_running_time/n_valid))
+        print('\nAverage running time: %.3f s'%(total_running_time/len(datasetloader)))
+        if args.metrics:
+            print('Average metrics for color maps: SSIM: %.3f, PSNR (dB): %.3f, MSE: %.3f'%(total_ssim/len(datasetloader), total_psnr/len(datasetloader), total_mse/len(datasetloader)))
 
 class Helper(nn.Module):
     def __init__(self, R, stride, eta, delta, device):
@@ -157,13 +167,29 @@ class Helper(nn.Module):
         minabsdist = torch.where(d1 < 0.0, -d1, torch.where(d2 < 0.0, torch.min(d1, -d2), torch.min(d1, d2)))
         return 1.0 / (1.0 + (minabsdist / self.delta) ** 2)
 
-    def forward(self, ests, noisy_image, colors_only=True):
+    def calculate_sim(self, tgt_imgs, est_imgs, alpha):
+        tgt_imgs_np = tgt_imgs.detach().cpu().numpy() / alpha
+        est_imgs_np = est_imgs.detach().cpu().numpy().transpose(0,2,3,1) / alpha
+        ssim = 0
+        psnr = 0
+        mse = 0
+        n = tgt_imgs.shape[0]
+        for i in range(n):
+            tgt_img = cv2.cvtColor(tgt_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
+            est_img = cv2.cvtColor(est_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
+            # pdb.set_trace()
+            ssim += compare_ssim(tgt_img, est_img, data_range=1.0)
+            psnr += compare_psnr(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:], data_range=1.0)
+            mse += compare_mse(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:])
+        return ssim/n, psnr/n, mse/n
+
+    def forward(self, ests, ny_image, gt_image=None, alpha=None, colors_only=True):
         ests = ests.permute(0,2,1).view(self.batch_size, 5, self.H_patches, self.W_patches)
         angles = torch.remainder((ests[:, :3, :, :] + 1) * np.pi, 2 * np.pi)
         angles = torch.sort(angles, dim=1)[0]
         x0y0 = ests[:, 3:, :, :] * 3
         para = torch.cat([angles, x0y0], dim=1)
-        self.img_patches = nn.Unfold(self.R, stride=self.stride)(noisy_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
+        self.img_patches = nn.Unfold(self.R, stride=self.stride)(ny_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
         dists, colors, patches = self.get_dists_and_patches(para)
         if colors_only:
             return colors
@@ -171,7 +197,11 @@ class Helper(nn.Module):
             self.global_boundaries = self.local2global(self.dists2boundaries(dists))
             global_bndry = self.global_boundaries.squeeze().detach().cpu().numpy()
             self.global_image = self.local2global(patches)
-            return self.global_image, global_bndry
+            if gt_image is None:
+                return self.global_image, global_bndry
+            else:
+                ssim, psnr, mse = self.calculate_sim(gt_image, self.global_image, alpha)
+                return self.global_image, global_bndry, ssim, psnr, mse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -179,9 +209,9 @@ if __name__ == "__main__":
     parser.add_argument('--R', type=int, default=21, help='Patch size')
     parser.add_argument('--stride', type=int, default=2, help='Patch size')
     parser.add_argument('--data_path', type=str, default='./dataset/refinement/', help='Path of dataset')
-    # parser.add_argument('--data_path', type=str, default='./dataset/eval/', help='Path of dataset')
     parser.add_argument('--eta', type=float, default=0.01, help='Width parameter for Heaviside functions')
     parser.add_argument('--delta', type=float, default=0.05, help='Delta parameter')
+    parser.add_argument('--metrics', type=bool, default=False, help='Choose whether calculate metrics')
     parser.add_argument('--eval', type=str, default=None, choices=[None,'BSDS500','NYUDv2'], help='Whether to evaluate the model with BSDS500 or NYUDv2')
     parser.add_argument('--eval_alpha', type=int, default=0, choices=[2,4,6,8], help='Photon level for evaluation with BSDS500 or NYUDv2')
     args = parser.parse_args()

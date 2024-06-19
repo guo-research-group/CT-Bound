@@ -77,11 +77,11 @@ To investigate the performance of whole pipeline with the MS COCO testing set, r
 
 To evaluate with BSDS500 or NYUDv2 testing set on photo level of $n$ ($\alpha_{\text{test}}=n$), run
 
-    python ct_bound.py --eval BSDS500 --eval_alpha n
+    python ct_bound.py --data_path './dataset/eval/' --eval BSDS500 --eval_alpha n
 
 or
 
-    python ct_bound.py --eval NYUDv2 --eval_alpha n
+    python ct_bound.py --data_path './dataset/eval/' --eval NYUDv2 --eval_alpha n
 
 To calculate the ODS F1-score, run
 
@@ -92,6 +92,8 @@ or
 
     cd eval
     matlab -nodisplay -nodesktop -nosplash -r  eval_nyud.m
+
+Note that if you want to calculate the metrics for color maps, add ``--metrics True`` parameter with the calling command above. 
 
 ## 3 Citation
 
