@@ -120,7 +120,7 @@ Note that if you want to calculate the metrics for color maps, add ``--metrics T
 
 The ODS F1-score can be found in the table below. 
 
-<br><table>
+<table>
     <tr>
         <th style="text-align: center" rowspan="2">Dataset</th>
         <th style="text-align: center" colspan="4">Photon level \alpha</th>
