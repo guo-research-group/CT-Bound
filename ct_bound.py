@@ -177,7 +177,6 @@ class Helper(nn.Module):
         for i in range(n):
             tgt_img = cv2.cvtColor(tgt_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
             est_img = cv2.cvtColor(est_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
-            # pdb.set_trace()
             ssim += compare_ssim(tgt_img, est_img, data_range=1.0)
             psnr += compare_psnr(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:], data_range=1.0)
             mse += compare_mse(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:])
