@@ -68,7 +68,7 @@ def CT_Bound(args, cnn, refiner, helper, datasetloader):
                 total_ssim += ssim
                 total_psnr += psnr
                 total_mse += mse
-                print('--- color map: SSIM: %.4f, PSNR (dB): %.4f, MSE: %.4f'%(ssim, psnr, mse))
+                print('--- color map: SSIM: %.3f, PSNR (dB): %.3f, MSE: %.3f'%(ssim, psnr, mse))
 
             running_time = time.time() - start_time
 
@@ -175,9 +175,7 @@ class Helper(nn.Module):
         mse = 0
         n = tgt_imgs.shape[0]
         for i in range(n):
-            tgt_img = cv2.cvtColor(tgt_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
-            est_img = cv2.cvtColor(est_imgs_np[i,:,:,:], cv2.COLOR_BGR2GRAY)
-            ssim += compare_ssim(tgt_img, est_img, data_range=1.0)
+            ssim += compare_ssim(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:], data_range=1.0, channel_axis=2)
             psnr += compare_psnr(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:], data_range=1.0)
             mse += compare_mse(tgt_imgs_np[i,:,:,:], est_imgs_np[i,:,:,:])
         return ssim/n, psnr/n, mse/n
