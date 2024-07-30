@@ -198,7 +198,7 @@ class L2Loss(nn.Module):
         x0y0 = ests[:, 3:, :, :] * 3
         para = torch.cat([angles, x0y0], dim=1)
         self.img_patches = nn.Unfold(self.R, stride=self.stride)(noisy_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
-        self.gt_img_patches = nn.Unfold(self.R, stride=self.stride)(gt_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches) #!
+        self.gt_img_patches = nn.Unfold(self.R, stride=self.stride)(gt_image.permute(0,3,1,2)).view(self.batch_size, 3, self.R, self.R, self.H_patches, self.W_patches)
         dists, colors, patches = self.get_dists_and_patches(para)
         self.global_image = self.local2global(patches)
         self.global_boundaries = self.local2global(self.dists2boundaries(dists))
