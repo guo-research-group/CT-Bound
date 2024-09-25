@@ -2,7 +2,7 @@
 
 [![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)
 
-*Wei Xu, Junjie Luo, and Qi Guo*
+*Wei Xu, Junjie Luo, and [Qi Guo](https://qiguo.org)*
 
 Elmore Family School of Electrical and Computer Engineering, Purdue University
 
