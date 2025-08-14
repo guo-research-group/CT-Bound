@@ -2,11 +2,11 @@
 
 [![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)
 
-*[Wei Xu](https://www.weixu.xyz/), Junjie Luo, and [Qi Guo](https://qiguo.org)*
+*[Wei Xu](https://www.weixu.net/), Junjie Luo, and [Qi Guo](https://qiguo.org)*
 
 Elmore Family School of Electrical and Computer Engineering, Purdue University
 
-Contact: xu1639@purdue.edu
+Contact: weixu@purdue.edu
 
 <a href="https://arxiv.org/abs/2403.16494" title="arXiv">**arXiv**</a> | <a href="https://drive.google.com/drive/folders/19TFgtBi1XZiea0ilWVbKvpalh4g7k8ZH?usp=drive_link" title="CT-Bound datasets">**Dataset & Pretrained weights**</a> | <a href="https://youtu.be/MQAExIUfstw" title="CT-Bound video demo">**Real-time video processing demo**</a>
 
